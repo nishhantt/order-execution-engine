@@ -1,5 +1,4 @@
 import { Worker, Job } from 'bullmq';
-import { config } from '../config';
 import { logger } from '../utils/logger';
 import { OrderProcessor } from '../services/order-processor';
 import { WebSocketManager } from '../services/websocket';
@@ -13,74 +12,46 @@ export class OrderWorker {
   constructor(wsManager: WebSocketManager) {
     this.orderProcessor = new OrderProcessor(wsManager);
 
-    // Create Redis connection for worker using environment variable
-    const connection = process.env.REDIS_URL
-      ? new Redis(process.env.REDIS_URL, {
-          maxRetriesPerRequest: null,
-        })
-      : new Redis({
-          host: config.redis.host,
-          port: config.redis.port,
-          maxRetriesPerRequest: null,
-        });
+    console.log('🔍 Worker REDIS_URL:', process.env.REDIS_URL ? 'EXISTS' : 'MISSING');
+
+    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+    const connection = new Redis(redisUrl, { maxRetriesPerRequest: null });
 
     this.worker = new Worker<OrderJobData>(
       'order-execution',
-      async (job: Job<OrderJobData>) => {
-        return this.processJob(job);
-      },
+      async (job: Job<OrderJobData>) => this.processJob(job),
       {
         connection,
-        concurrency: config.queue.concurrency,
-        limiter: {
-          max: config.queue.maxJobsPerMinute,
-          duration: 60000,
-        },
+        concurrency: 10,
+        limiter: { max: 100, duration: 60000 },
       }
     );
 
     this.setupEventHandlers();
-
-    logger.info(
-      { concurrency: config.queue.concurrency, maxJobsPerMinute: config.queue.maxJobsPerMinute },
-      'Order worker initialized'
-    );
+    logger.info('Order worker initialized');
   }
 
   private async processJob(job: Job<OrderJobData>): Promise<void> {
     const { orderId, orderType, tokenIn, tokenOut, amountIn } = job.data;
-
-    logger.info(
-      { jobId: job.id, orderId, attempt: job.attemptsMade + 1 },
-      'Processing order job'
-    );
-
+    logger.info({ orderId }, 'Processing order job');
     await this.orderProcessor.processOrder(orderId, orderType, tokenIn, tokenOut, amountIn);
   }
 
   private setupEventHandlers(): void {
     this.worker.on('completed', (job) => {
-      logger.info({ jobId: job.id, orderId: job.data.orderId }, 'Order job completed');
+      logger.info({ orderId: job.data.orderId }, 'Order job completed');
     });
 
     this.worker.on('failed', (job, error) => {
-      logger.error(
-        { jobId: job?.id, orderId: job?.data.orderId, error: error.message },
-        'Order job failed'
-      );
+      logger.error({ orderId: job?.data.orderId, error: error.message }, 'Order job failed');
     });
 
     this.worker.on('error', (error) => {
       logger.error({ error }, 'Worker error');
     });
-
-    this.worker.on('stalled', (jobId) => {
-      logger.warn({ jobId }, 'Job stalled');
-    });
   }
 
   async close(): Promise<void> => {
     await this.worker.close();
-    logger.info('Order worker closed');
   }
 }
