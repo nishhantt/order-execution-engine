@@ -1,16 +1,27 @@
 import { Queue, QueueOptions } from 'bullmq';
-import { redis } from '../config/redis';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { CreateOrderRequest } from '../types/order.types';
+import Redis from 'ioredis';
 
 export interface OrderJobData extends CreateOrderRequest {
   orderId: string;
   timestamp: number;
 }
 
+// Create Redis connection for BullMQ using environment variable
+const connection = process.env.REDIS_URL
+  ? new Redis(process.env.REDIS_URL, {
+      maxRetriesPerRequest: null,
+    })
+  : new Redis({
+      host: config.redis.host,
+      port: config.redis.port,
+      maxRetriesPerRequest: null,
+    });
+
 const queueOptions: QueueOptions = {
-  connection: redis,
+  connection,
   defaultJobOptions: {
     attempts: config.orderProcessing.maxRetryAttempts,
     backoff: {
@@ -18,11 +29,11 @@ const queueOptions: QueueOptions = {
       delay: config.orderProcessing.retryBackoffMs,
     },
     removeOnComplete: {
-      age: 3600, // Keep completed jobs for 1 hour
+      age: 3600,
       count: 1000,
     },
     removeOnFail: {
-      age: 86400, // Keep failed jobs for 24 hours
+      age: 86400,
     },
   },
 };

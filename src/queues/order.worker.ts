@@ -1,10 +1,10 @@
 import { Worker, Job } from 'bullmq';
-import { redis } from '../config/redis';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { OrderProcessor } from '../services/order-processor';
 import { WebSocketManager } from '../services/websocket';
 import { OrderJobData } from './order.queue';
+import Redis from 'ioredis';
 
 export class OrderWorker {
   private worker: Worker;
@@ -13,17 +13,28 @@ export class OrderWorker {
   constructor(wsManager: WebSocketManager) {
     this.orderProcessor = new OrderProcessor(wsManager);
 
+    // Create Redis connection for worker using environment variable
+    const connection = process.env.REDIS_URL
+      ? new Redis(process.env.REDIS_URL, {
+          maxRetriesPerRequest: null,
+        })
+      : new Redis({
+          host: config.redis.host,
+          port: config.redis.port,
+          maxRetriesPerRequest: null,
+        });
+
     this.worker = new Worker<OrderJobData>(
       'order-execution',
       async (job: Job<OrderJobData>) => {
         return this.processJob(job);
       },
       {
-        connection: redis,
+        connection,
         concurrency: config.queue.concurrency,
         limiter: {
           max: config.queue.maxJobsPerMinute,
-          duration: 60000, // 1 minute
+          duration: 60000,
         },
       }
     );
@@ -68,7 +79,7 @@ export class OrderWorker {
     });
   }
 
-  async close(): Promise<void> {
+  async close(): Promise<void> => {
     await this.worker.close();
     logger.info('Order worker closed');
   }
