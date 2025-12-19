@@ -48,14 +48,34 @@ export const config = configSchema.parse({
   nodeEnv: process.env.NODE_ENV,
   port: process.env.PORT,
   host: process.env.HOST,
-  database: {
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    name: process.env.DB_NAME,
-    maxConnections: process.env.DB_MAX_CONNECTIONS,
-  },
+  database: (() => {
+    // Support single DATABASE_URL (Railway/Postgres) or individual DB_* vars
+    const databaseUrl = process.env.DATABASE_URL;
+    if (databaseUrl) {
+      try {
+        const parsed = new URL(databaseUrl);
+        return {
+          host: parsed.hostname,
+          port: parsed.port ? Number(parsed.port) : undefined,
+          user: parsed.username || undefined,
+          password: parsed.password || undefined,
+          name: parsed.pathname ? parsed.pathname.replace(/^\//, '') : undefined,
+          maxConnections: process.env.DB_MAX_CONNECTIONS,
+        };
+      } catch (e) {
+        // fall back to individual vars if parsing fails
+      }
+    }
+
+    return {
+      host: process.env.DB_HOST,
+      port: process.env.DB_PORT,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      name: process.env.DB_NAME,
+      maxConnections: process.env.DB_MAX_CONNECTIONS,
+    };
+  })(),
   redis: {
     host: process.env.REDIS_HOST,
     port: process.env.REDIS_PORT,

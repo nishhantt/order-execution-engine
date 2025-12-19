@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { v4 as uuidv4 } from 'uuid';
+
 import { validateOrderRequest } from '../middleware/request-validator';
 import { rateLimiter } from '../middleware/rate-limiter';
 import { addOrderToQueue } from '../queues/order.queue';
@@ -12,9 +12,10 @@ export const orderRoutes = async (fastify: FastifyInstance, wsManager: WebSocket
     method: 'POST',
     url: '/api/orders/execute',
     preHandler: [rateLimiter, validateOrderRequest],
-    wsHandler: (connection: any, request: any) => {
+    wsHandler: async (connection: any, request: any) => {
       // This handles the WebSocket upgrade
       const validatedOrder = (request as any).validatedOrder;
+      const { v4: uuidv4 } = await import('uuid');
       const orderId = uuidv4();
       const socket = connection.socket;
 
@@ -66,6 +67,7 @@ export const orderRoutes = async (fastify: FastifyInstance, wsManager: WebSocket
     handler: async (request, reply) => {
       // This handles regular HTTP POST (if client doesn't upgrade)
       const validatedOrder = (request as any).validatedOrder;
+      const { v4: uuidv4 } = await import('uuid');
       const orderId = uuidv4();
 
       logger.info({ orderId, order: validatedOrder }, 'Order received via HTTP');

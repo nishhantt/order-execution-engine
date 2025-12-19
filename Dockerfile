@@ -7,8 +7,8 @@ WORKDIR /app
 COPY package*.json ./
 COPY tsconfig.json ./
 
-# Install dependencies
-RUN npm ci
+# Install dependencies (use npm install if no lockfile exists)
+RUN npm install
 
 # Copy source code
 COPY src ./src
@@ -25,7 +25,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install production dependencies only
-RUN npm ci --only=production
+RUN npm install --production
 
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
@@ -40,12 +40,15 @@ RUN chown -R nodejs:nodejs /app
 # Switch to non-root user
 USER nodejs
 
+# Default port
+ENV PORT=3000
+
 # Expose port
 EXPOSE 3000
 
-# Health check
+# Health check uses runtime PORT
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+  CMD ["node","-e","require('http').get('http://localhost:' + (process.env.PORT || 3000) + '/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) })"]
 
 # Start the application
 CMD ["node", "dist/server.js"]

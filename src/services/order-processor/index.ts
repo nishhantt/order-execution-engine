@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
 import { Order, OrderStatus, OrderType } from '../../types/order.types';
 import { DexRouter } from '../dex-router';
 import { OrderRepository } from '../../repositories/order.repository';
