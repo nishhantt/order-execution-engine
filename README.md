@@ -2,8 +2,8 @@
 
 A smart order router that finds the best price across Raydium and Meteora DEXs on Solana, with real-time WebSocket updates.
 
-**Live Demo:** [Add your deployment URL here]  
-**Video Demo:** [Add your YouTube link here]  
+**Live Demo:** 
+**Video Demo:** 
 **GitHub:** https://github.com/nishhantt/order-execution-engine
 
 ---
